@@ -360,7 +360,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String type = processor.getType();
         Map<String,Object> processorConfigObject = getProcessorConfig(atlasUrl, basicAuth);
         Map<String,String> processorConfigMap = new HashMap<String,String>();
-        if(processorConfigObject.size() > 0){
+        if(processorConfigObject != null && processorConfigObject.size() > 0){
         	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
         		if(configItem.getValue() instanceof String){
         			processorConfigMap.put(configItem.getKey(), (String) configItem.getValue());
