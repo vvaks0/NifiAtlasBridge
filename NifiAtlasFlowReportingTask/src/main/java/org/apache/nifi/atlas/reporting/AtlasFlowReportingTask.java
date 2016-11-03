@@ -174,6 +174,18 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
        		getLogger().info("********************* VALUE: " + property.getValue());
        	}
        	
+       	List<Action> actions = reportingContext.getEventAccess().getFlowChanges(1, 10);
+       	
+       	for (Action action: actions){
+       		getLogger().info("********************* ID: " + action.getId());
+       		getLogger().info("********************* SOURCEID: " + action.getSourceId());
+       		getLogger().info("********************* NAME: " + action.getSourceName());
+       		getLogger().info("********************* ACTIONDETAILS: " + action.getActionDetails());
+       		getLogger().info("********************* DETAILS: " + action.getComponentDetails());
+       		getLogger().info("********************* TYPE: " + action.getSourceType());
+       		getLogger().info("********************* OPERATIONS: " + action.getOperation());       		
+       	}
+       	
         // load the reference to the flow controller, if it doesn't exist then create it
         try {
         	//Referenceable flowController = getFlowControllerReference(reportingContext);
@@ -181,7 +193,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             //if (flowController == null) {
             	//getLogger().info("flow controller didn't exist, creating it...");
             	flowController = createFlowController(reportingContext);
+            	
             	if(changesInFlow > 0){
+            		getLogger().info(InstanceSerialization.toJson(flowController, true));
             		flowController = register(flowController);
         		}else{
         			getLogger().info("********************* Nochanges detected... nothing to do");
@@ -273,8 +287,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
     		}
     		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
-        }	
+        }
         flowController.set("process_groups", referenceableProcessGroups);
+        getLogger().info(InstanceSerialization.toJson(flowController, true));
         return flowController;
     }
     
@@ -313,8 +328,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             }
             referenceableProcessors.add(createProcessor(referenceableProcessGroup, processor));
         }
-        
         referenceableProcessGroup.set("processors", referenceableProcessors);
+        getLogger().info(InstanceSerialization.toJson(referenceableProcessGroup, true));
         return referenceableProcessGroup;
     }
 
@@ -363,6 +378,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             break;
     	}
         */
+        getLogger().info(InstanceSerialization.toJson(processorReferenceable, true));
         return processorReferenceable;
     }
     
