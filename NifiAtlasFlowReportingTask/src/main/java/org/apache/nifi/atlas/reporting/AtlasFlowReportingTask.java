@@ -174,7 +174,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
                 if (flowController == null) {
                     getLogger().info("flow controller didn't exist, creating it...");
                     flowController = createFlowController(reportingContext);
-                    flowController = register(atlasClient, flowController);
+                    flowController = register(flowController);
                 }
                 flowControllerRef.set(flowController);
             } catch (Exception e) {
@@ -252,10 +252,11 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     }
 
     private Referenceable getFlowControllerReference(ReportingContext context) throws Exception {
-        final String typeName = NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName();
-        final String id = context.getEventAccess().getControllerStatus().getId();
+        String typeName = NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName();
+        String id = context.getEventAccess().getControllerStatus().getId();
+        String name = context.getEventAccess().getControllerStatus().getName();
 
-        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, id);
+        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
     }
 
@@ -264,7 +265,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String id = processGroup.getId();
         String name = processGroup.getName();
         
-        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, id);
+        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
     }
     
@@ -285,6 +286,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         List<Referenceable> referenceableProcessGroups = new ArrayList<Referenceable>();
         
         flowController.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
+        flowController.set(NAME, name+"-"+id);
         
         List<ProcessGroupStatus> processGroups = (List<ProcessGroupStatus>) context.getEventAccess().getControllerStatus().getProcessGroupStatus();
         Iterator<ProcessGroupStatus> processGroupIterator = processGroups.iterator();
@@ -306,26 +308,14 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         return flowController;
     }
     
-    /*
-    private Referenceable createRootProcessGroup(ReportingContext context, Referenceable flowController) {
-        String id = context.getEventAccess().getControllerStatus().getId();
-        String name = context.getEventAccess().getControllerStatus().getName();
-
-        Referenceable rootGroup = new Referenceable(NiFiDataTypes.NIFI_PROCESS_GROUP.getName());
-        rootGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, id);
-        rootGroup.set(NAME, name);
-        rootGroup.set(FLOW, flowController);
-        return rootGroup;
-    }*/
-    
     private Referenceable createProcessGroup(Referenceable flowController, ProcessGroupStatus processGroup) {
         String id = processGroup.getId();
         String name = processGroup.getName();
         List<Referenceable> referenceableProcessors = new ArrayList<Referenceable>();
         
         Referenceable referenceableProcessGroup = new Referenceable(NiFiDataTypes.NIFI_PROCESS_GROUP.getName());
-        referenceableProcessGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, id);
-        referenceableProcessGroup.set(NAME, name);
+        referenceableProcessGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
+        referenceableProcessGroup.set(NAME, name+"-"+id);
         referenceableProcessGroup.set(FLOW, flowController);
         
         List<ProcessorStatus> processorCollection = (List<ProcessorStatus>) processGroup.getProcessorStatus();
@@ -345,15 +335,13 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	} catch (Exception e) {
         		referenceableProcessors.add(createProcessor(processor, referenceableProcessGroup));
 			}
-            
-            
         }
         
         referenceableProcessGroup.set("processors", referenceableProcessors);
         return referenceableProcessGroup;
     }
 
-    private Referenceable createProcessor(ProcessorStatus processor, Referenceable processGroup) {
+    private Referenceable createProcessor(ProcessorStatus processor, Referenceable processGroupReferenceable) {
         String id = processor.getId();
         String name = processor.getName();
         String type = processor.getType();
@@ -362,33 +350,33 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         Referenceable processorReferenceable = new Referenceable(NiFiDataTypes.NIFI_PROCESSOR.getName());
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
-        processorReferenceable.set(PROCESS_GROUP, processGroup);
+        processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable);
         
         switch (processor.getType()) {
         case "PutKafka":
             try {
-				register(atlasClient, createKafkaTopic(processor));
+				register(createKafkaTopic(processor));
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "PublishKafka":
         	try {
-				register(atlasClient, createKafkaTopic(processor));
+				register(createKafkaTopic(processor));
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "PublishKafka_0_10":
         	try {
-				register(atlasClient, createKafkaTopic(processor));
+				register(createKafkaTopic(processor));
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "ListenHttp":
         	try {
-				register(atlasClient, createHttpService(processor, processorReferenceable));
+				register(createHttpService(processor, processorReferenceable));
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -589,19 +577,19 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         }
     }
 
-    public Referenceable register(final AtlasClient atlasClient, final Referenceable referenceable) throws Exception {
+    public Referenceable register(Referenceable referenceable) throws Exception {
         if (referenceable == null) {
             return null;
         }
 
         final String typeName = referenceable.getTypeName();
-        getLogger().debug("creating instance of type " + typeName);
+        getLogger().info("creating instance of type " + typeName);
 
         final String entityJSON = InstanceSerialization.toJson(referenceable, true);
-        getLogger().debug("Submitting new entity {} = {}", new Object[] { referenceable.getTypeName(), entityJSON });
+        getLogger().info("Submitting new entity {} = {}", new Object[] { referenceable.getTypeName(), entityJSON });
 
         final List<String> guids = atlasClient.createEntity(entityJSON);
-        getLogger().debug("created instance for type " + typeName + ", guid: " + guids);
+        getLogger().info("created instance for type " + typeName + ", guid: " + guids);
 
         return new Referenceable(guids.get(0), referenceable.getTypeName(), null);
     }
