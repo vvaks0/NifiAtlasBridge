@@ -118,6 +118,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private Map<String, EnumTypeDefinition> enumTypeDefinitionMap = new HashMap<String, EnumTypeDefinition>();
 	private Map<String, StructTypeDefinition> structTypeDefinitionMap = new HashMap<String, StructTypeDefinition>();
 	private Map<String, HierarchicalTypeDefinition<ClassType>> classTypeDefinitions = new HashMap<String, HierarchicalTypeDefinition<ClassType>>();
+	private int changesInFlow;
 
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
@@ -168,12 +169,15 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 
         // load the reference to the flow controller, if it doesn't exist then create it
         try {
-        	Referenceable flowController = getFlowControllerReference(reportingContext);
-            if (flowController == null) {
-            	getLogger().info("flow controller didn't exist, creating it...");
+        	//Referenceable flowController = getFlowControllerReference(reportingContext);
+        	Referenceable flowController = null;
+            //if (flowController == null) {
+            	//getLogger().info("flow controller didn't exist, creating it...");
             	flowController = createFlowController(reportingContext);
-            	flowController = register(flowController);
-            }
+            	if(changesInFlow > 0){
+            		flowController = register(flowController);
+        		}
+            //}
         } catch (Exception e) {
         	getLogger().error("Unable to get reference to flow controller from Atlas", e);
         	throw new ProcessException(e);
@@ -181,27 +185,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 
         getLogger().info("Done processing actions");
         timesTriggered++;
-    }
-
-    private void processAction(Action action) throws Exception {
-        getLogger().info("****************Processing action with id {}", new Object[] {action.getId()});
-        getLogger().info("****************Source Id: " + action.getSourceId());
-        getLogger().info("****************Source Name: " + action.getSourceName());
-        getLogger().info("****************Source Type: " + action.getSourceType());
-        getLogger().info("****************Component Operation: " + action.getOperation());
-        getLogger().info("****************Component Details: " + action.getComponentDetails());
-        
-        switch (action.getOperation()) {
-            case Add:
-                if (action.getSourceType().equals(Component.Processor)) {
-                    //ReferenceableUtil.register(atlasClient, createProcessor(action));
-                }
-                break;
-            case Connect:
-                break;
-            default:
-                break;
-        }
     }
 
     private Referenceable getFlowControllerReference(ReportingContext context) throws Exception {
@@ -245,6 +228,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         List<ProcessGroupStatus> processGroups = (List<ProcessGroupStatus>) context.getEventAccess().getControllerStatus().getProcessGroupStatus();
         getLogger().info("****************Flow Controller Process Groups : " + processGroups.size());
         
+        Referenceable processGroupReferenceable = null;
         ProcessGroupStatus processGroup;
         if(processGroups.size() > 0){
         	Iterator<ProcessGroupStatus> processGroupIterator = processGroups.iterator();
@@ -253,24 +237,33 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         		getLogger().info("****************Process Group Id: " + processGroup.getId());
         		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
         		try {
-        			getProcessGroupReference(processGroup);
-        			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+        			processGroupReferenceable = getProcessGroupReference(processGroup);
         		} catch (Exception e) {
-        			referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
+        			e.printStackTrace();
         		}
+        		if (processGroupReferenceable == null)
+        			changesInFlow++;
+        		else{
+        			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+        		}
+        		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
         	}
         }else{
         	processGroup = context.getEventAccess().getControllerStatus();
     		getLogger().info("****************Process Group Id: " + processGroup.getId());
     		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
     		try {
-    			getProcessGroupReference(processGroup);
-    			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+    			processGroupReferenceable = getProcessGroupReference(processGroup);
     		} catch (Exception e) {
-    			referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
+    			e.printStackTrace();
     		}
-        }
-        	
+    		if (processGroupReferenceable == null){
+    			changesInFlow++;
+    		}else{
+    			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+    		}
+    		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
+        }	
         flowController.set("process_groups", referenceableProcessGroups);
         return flowController;
     }
@@ -288,6 +281,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         
         List<ProcessorStatus> processorCollection = (List<ProcessorStatus>) processGroup.getProcessorStatus();
         Iterator<ProcessorStatus> processorIterator = processorCollection.iterator();
+        Referenceable referenceableProcessor = null;
         ProcessorStatus processor;
         while(processorIterator.hasNext()){
         	processor = processorIterator.next();
@@ -298,18 +292,23 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             getLogger().info("****************Processor GroupId: " + processor.getGroupId());
             
             try {
-				getProcessorReference(processor);
-				getLogger().info("****************Processor Name: " + processor.getName() + " already exists");
+            	referenceableProcessor = getProcessorReference(processor);
         	} catch (Exception e) {
-        		referenceableProcessors.add(createProcessor(processor, referenceableProcessGroup));
+        		e.printStackTrace();
 			}
+            if(referenceableProcessor == null){
+            	changesInFlow++;
+            }else{
+            	getLogger().info("****************Processor Name: " + processor.getName() + " already exists");
+            }
+            referenceableProcessors.add(createProcessor(referenceableProcessGroup, processor));
         }
         
         referenceableProcessGroup.set("processors", referenceableProcessors);
         return referenceableProcessGroup;
     }
 
-    private Referenceable createProcessor(ProcessorStatus processor, Referenceable processGroupReferenceable) {
+    private Referenceable createProcessor(Referenceable processGroupReferenceable, ProcessorStatus processor) {
         String id = processor.getId();
         String name = processor.getName();
         String type = processor.getType();
@@ -606,4 +605,25 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 	    }
 	    return sb.toString();
 	}
+	 /*
+    private void processAction(Action action) throws Exception {
+        getLogger().info("****************Processing action with id {}", new Object[] {action.getId()});
+        getLogger().info("****************Source Id: " + action.getSourceId());
+        getLogger().info("****************Source Name: " + action.getSourceName());
+        getLogger().info("****************Source Type: " + action.getSourceType());
+        getLogger().info("****************Component Operation: " + action.getOperation());
+        getLogger().info("****************Component Details: " + action.getComponentDetails());
+        
+        switch (action.getOperation()) {
+            case Add:
+                if (action.getSourceType().equals(Component.Processor)) {
+                    //ReferenceableUtil.register(atlasClient, createProcessor(action));
+                }
+                break;
+            case Connect:
+                break;
+            default:
+                break;
+        }
+    } */
 }
