@@ -360,13 +360,14 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String type = processor.getType();
         Map<String,Object> processorConfigObject = getProcessorConfig(atlasUrl, basicAuth);
         Map<String,String> processorConfigMap = new HashMap<String,String>();
-        for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
-        	if(configItem.getValue() instanceof String){
-        		processorConfigMap.put(configItem.getKey(), (String) configItem.getValue());
+        if(processorConfigObject.size() > 0){
+        	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
+        		if(configItem.getValue() instanceof String){
+        			processorConfigMap.put(configItem.getKey(), (String) configItem.getValue());
+        		}
         	}
-		}
+        }
         
-        // TODO populate processor properties and determine real parent group, assuming root group for now
         Referenceable processorReferenceable = new Referenceable(NiFiDataTypes.NIFI_PROCESSOR.getName());
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
