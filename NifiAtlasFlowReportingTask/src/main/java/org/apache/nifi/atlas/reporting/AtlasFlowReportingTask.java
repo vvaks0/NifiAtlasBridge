@@ -33,6 +33,7 @@ import org.apache.atlas.typesystem.types.Multiplicity;
 import org.apache.atlas.typesystem.types.StructTypeDefinition;
 import org.apache.atlas.typesystem.types.TraitType;
 import org.apache.atlas.typesystem.types.utils.TypesUtil;
+import org.apache.htrace.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.action.Action;
 import org.apache.nifi.action.Component;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -43,6 +44,7 @@ import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.controller.status.ProcessGroupStatus;
 import org.apache.nifi.controller.status.ProcessorStatus;
+import org.apache.nifi.processor.Processor;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.AbstractReportingTask;
@@ -71,6 +73,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.nifi.web.ProcessorInfo;
 import org.apache.nifi.web.ProcessorInfo.Builder;
@@ -84,7 +87,15 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             .description("The URL of the Atlas Server")
             .required(true)
             .expressionLanguageSupported(true)
-            .defaultValue("http://localhost:21000/")
+            .defaultValue("http://localhost:21000")
+            .addValidator(StandardValidators.URL_VALIDATOR)
+            .build();
+    static final PropertyDescriptor NIFI_URL = new PropertyDescriptor.Builder()
+            .name("Nifi URL")
+            .description("The URL of the Nifi UI")
+            .required(true)
+            .expressionLanguageSupported(true)
+            .defaultValue("http://localhost:9090")
             .addValidator(StandardValidators.URL_VALIDATOR)
             .build();
     static final PropertyDescriptor ACTION_PAGE_SIZE = new PropertyDescriptor.Builder()
@@ -105,6 +116,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private String DEFAULT_ADMIN_USER = "admin";
     private String DEFAULT_ADMIN_PASS = "admin";
     private String atlasUrl;
+    private String nifiUrl = "http://localhost";
+    private String[] basicAuth = {DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASS};
     
     private DataTypes.MapType STRING_MAP_TYPE = new DataTypes.MapType(DataTypes.STRING_TYPE, DataTypes.STRING_TYPE);
 
@@ -118,12 +131,15 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private Map<String, EnumTypeDefinition> enumTypeDefinitionMap = new HashMap<String, EnumTypeDefinition>();
 	private Map<String, StructTypeDefinition> structTypeDefinitionMap = new HashMap<String, StructTypeDefinition>();
 	private Map<String, HierarchicalTypeDefinition<ClassType>> classTypeDefinitions = new HashMap<String, HierarchicalTypeDefinition<ClassType>>();
+	private List<Referenceable> inputs;
+	private List<Referenceable> outputs;
 	private int changesInFlow;
 	
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         final List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(ATLAS_URL);
+        properties.add(NIFI_URL);
         properties.add(ACTION_PAGE_SIZE);
         return properties;
     }
@@ -139,11 +155,13 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         props.setProperty("atlas.conf", "/usr/hdp/current/atlas-client/conf");
         getLogger().info("***************** atlas.conf has been set to: " + props.getProperty("atlas.conf"));
     	
-        EventAccess eventAccess = reportingContext.getEventAccess();
+        inputs = new ArrayList<Referenceable>();
+    	outputs = new ArrayList<Referenceable>();
+        //EventAccess eventAccess = reportingContext.getEventAccess();
         int pageSize = reportingContext.getProperty(ACTION_PAGE_SIZE).asInteger();
         atlasUrl = reportingContext.getProperty(ATLAS_URL).getValue();
+        nifiUrl = reportingContext.getProperty(NIFI_URL).getValue();
         String[] atlasURL = {atlasUrl};
-        String[] basicAuth = {DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASS};
 		
     	if (atlasClient == null) {
             getLogger().info("Creating new Atlas client for {}", new Object[] {atlasUrl});
@@ -193,7 +211,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             //if (flowController == null) {
             	//getLogger().info("flow controller didn't exist, creating it...");
             	flowController = createFlowController(reportingContext);
-            	
+            	flowController.set("inputs", inputs);
+            	flowController.set("outputs", outputs);
             	if(changesInFlow > 0){
             		getLogger().info(InstanceSerialization.toJson(flowController, true));
             		flowController = register(flowController);
@@ -339,39 +358,71 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String id = processor.getId();
         String name = processor.getName();
         String type = processor.getType();
-
+        Map<String,Object> processorConfigObject = getProcessorConfig(atlasUrl, basicAuth);
+        Map<String,String> processorConfigMap = new HashMap<String,String>();
+        for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
+        	if(configItem.getValue() instanceof String){
+        		processorConfigMap.put(configItem.getKey(), (String) configItem.getValue());
+        	}
+		}
+        
         // TODO populate processor properties and determine real parent group, assuming root group for now
         Referenceable processorReferenceable = new Referenceable(NiFiDataTypes.NIFI_PROCESSOR.getName());
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
         processorReferenceable.set("name", name);
         processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable.getId());
-        /*
+        processorReferenceable.set(PROPERTIES, processorConfigMap);
+        
+        Referenceable externalReferenceable = null;
         switch (processor.getType()) {
         case "PutKafka":
-            try {
-				register(createKafkaTopic(processor));
+        	try {
+        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
+				if(externalReferenceable == null){
+					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
+					changesInFlow++;
+				}
+				outputs.add(externalReferenceable);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "PublishKafka":
         	try {
-				register(createKafkaTopic(processor));
+        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
+				if(externalReferenceable == null){
+					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
+					changesInFlow++;
+				}
+				outputs.add(externalReferenceable);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "PublishKafka_0_10":
         	try {
-				register(createKafkaTopic(processor));
+        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
+				if(externalReferenceable == null){
+					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
+					changesInFlow++;
+				}
+				outputs.add(externalReferenceable);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
         case "ListenHttp":
         	try {
-				register(createHttpService(processor, processorReferenceable));
+        		String basePath = processorConfigMap.get("Base Path").toString();
+        		String listeningPort = processorConfigMap.get("Listening Port").toString();
+        		String listenHttpServiceUrl = nifiUrl+listeningPort+basePath;
+        		externalReferenceable = getEntityReferenceFromDSL("http_service", "http_service where name='" + listenHttpServiceUrl + "'");
+				if(externalReferenceable == null){
+					externalReferenceable = register(createHttpService(processor, processorReferenceable, processorConfigMap));
+					changesInFlow++;
+				}
+				inputs.add(externalReferenceable);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -379,15 +430,16 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         default:
             break;
     	}
-        */
+        
         getLogger().info(InstanceSerialization.toJson(processorReferenceable, true));
         return processorReferenceable;
     }
     
-    private Referenceable createKafkaTopic(ProcessorStatus processor){
+    private Referenceable createKafkaTopic(ProcessorStatus processor, Map<String, String> processorConfigMap){
     	Referenceable kafkaTopicReferenceable = new Referenceable("kafka_topic");
-        String topicName = "";
-        kafkaTopicReferenceable.set("topic", topicName);
+    	String topicName = processorConfigMap.get("Topic Name").toString();
+        
+    	kafkaTopicReferenceable.set("topic", topicName);
         kafkaTopicReferenceable.set("uri", "");
         kafkaTopicReferenceable.set(AtlasClient.OWNER, "");
         kafkaTopicReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, topicName);
@@ -396,14 +448,16 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         return kafkaTopicReferenceable;
     }
     
-    private Referenceable createHttpService(ProcessorStatus processor, Referenceable referenceableProcessor){
+    private Referenceable createHttpService(ProcessorStatus processor, Referenceable referenceableProcessor, Map<String, String> processorConfigMap){
     	Referenceable HttpServiceReferenceable = new Referenceable("http_service");
-        String topicName = "";
-        HttpServiceReferenceable.set("uri", "");
-        HttpServiceReferenceable.set(AtlasClient.OWNER, "");
-        HttpServiceReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, "kafka_topic-"+processor.getName()+processor.getId());
-        HttpServiceReferenceable.set(AtlasClient.NAME, "kafka_topic-"+processor.getName()+processor.getId());
-        HttpServiceReferenceable.set("implementation", referenceableProcessor);
+    	String basePath = processorConfigMap.get("Base Path").toString();
+		String listeningPort = processorConfigMap.get("Listening Port").toString();
+		String listenHttpServiceUrl = nifiUrl+listeningPort+basePath;
+		
+    	//HttpServiceReferenceable.set("uri", listenHttpServiceUrl);
+        HttpServiceReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, listenHttpServiceUrl);
+        HttpServiceReferenceable.set(AtlasClient.NAME, listenHttpServiceUrl);
+        HttpServiceReferenceable.set("implementation", referenceableProcessor.getId());
         
         return HttpServiceReferenceable;
     }
@@ -463,7 +517,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName();
         
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
                 new AttributeDefinition("process_groups", DataTypes.arrayTypeName(NiFiDataTypes.NIFI_PROCESS_GROUP.getName()), Multiplicity.OPTIONAL, true, null)
         };
         
@@ -475,8 +528,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = NiFiDataTypes.NIFI_PROCESS_GROUP.getName();
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
-                new AttributeDefinition(FLOW, NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), Multiplicity.REQUIRED, false, null),
+                new AttributeDefinition(FLOW, NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), Multiplicity.OPTIONAL, false, null),
                 new AttributeDefinition("processors", DataTypes.arrayTypeName(NiFiDataTypes.NIFI_PROCESSOR.getName()), Multiplicity.OPTIONAL, true, null)
         };
 
@@ -488,8 +540,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = NiFiDataTypes.NIFI_PROCESSOR.getName();
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
-                new AttributeDefinition(PROCESS_GROUP, NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), Multiplicity.REQUIRED, false, null),
+                new AttributeDefinition(PROCESS_GROUP, NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), Multiplicity.OPTIONAL, false, null),
                 new AttributeDefinition(PROPERTIES, STRING_MAP_TYPE.getName(), Multiplicity.OPTIONAL, false, null)
         };
 
@@ -501,9 +552,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = "http_service";
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
+                //new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
                 new AttributeDefinition(PROPERTIES, STRING_MAP_TYPE.getName(), Multiplicity.OPTIONAL, false, null),
-                new AttributeDefinition("implementation", AtlasClient.REFERENCEABLE_SUPER_TYPE, Multiplicity.REQUIRED, false, null)
+                new AttributeDefinition("implementation", AtlasClient.REFERENCEABLE_SUPER_TYPE, Multiplicity.OPTIONAL, false, null)
         };
 
         addClassTypeDefinition(typeName, ImmutableSet.of(AtlasClient.DATA_SET_SUPER_TYPE), attributeDefinitions);
@@ -514,9 +565,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = NiFiDataTypes.NIFI_CONNECTION.getName();
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
-                new AttributeDefinition(SOURCE, NiFiDataTypes.NIFI_PROCESSOR.getName(), Multiplicity.REQUIRED, false, null),
-                new AttributeDefinition(DESTINATION, NiFiDataTypes.NIFI_PROCESSOR.getName(), Multiplicity.REQUIRED, false, null),
+                new AttributeDefinition(SOURCE, NiFiDataTypes.NIFI_PROCESSOR.getName(), Multiplicity.OPTIONAL, false, null),
+                new AttributeDefinition(DESTINATION, NiFiDataTypes.NIFI_PROCESSOR.getName(), Multiplicity.OPTIONAL, false, null),
                 new AttributeDefinition(PROPERTIES, STRING_MAP_TYPE.getName(), Multiplicity.OPTIONAL, false, null)
         };
 
@@ -555,7 +605,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         return ImmutableList.of();
     }
     
-    public static Referenceable getEntityReferenceFromDSL(final AtlasClient atlasClient, final String typeName, final String dslQuery)
+    public Referenceable getEntityReferenceFromDSL(String typeName,  String dslQuery)
             throws Exception {
 
         final JSONArray results = atlasClient.searchByDSL(dslQuery);
@@ -572,7 +622,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             return new Referenceable(guid, typeName, null);
         }
     }
-
+    
     public Referenceable register(Referenceable referenceable) throws Exception {
         if (referenceable == null) {
             return null;
@@ -602,6 +652,23 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             e.printStackTrace();
         }
 		return versionValue.substring(0,3);
+	}
+	
+	private HashMap<String, Object> getProcessorConfig(String urlString, String[] basicAuth){
+		System.out.println("************************ Getting Nifi Processor from: " + urlString);
+		JSONObject json = null;
+		JSONObject nifiComponentJSON = null;
+		HashMap<String,Object> result = null;
+        try{
+        	json = readJSONFromUrlAuth(urlString, basicAuth);
+        	System.out.println("************************ Response from Nifi: " + json);
+        	nifiComponentJSON = json.getJSONObject("component").getJSONObject("config").getJSONObject("properties");
+        	result = new ObjectMapper().readValue(nifiComponentJSON.toString(), HashMap.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+       
+		return result;
 	}
 	
 	private JSONObject readJSONFromUrlAuth(String urlString, String[] basicAuth) throws IOException, JSONException {
