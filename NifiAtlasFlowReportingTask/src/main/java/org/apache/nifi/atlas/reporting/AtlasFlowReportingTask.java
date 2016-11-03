@@ -119,7 +119,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 	private Map<String, StructTypeDefinition> structTypeDefinitionMap = new HashMap<String, StructTypeDefinition>();
 	private Map<String, HierarchicalTypeDefinition<ClassType>> classTypeDefinitions = new HashMap<String, HierarchicalTypeDefinition<ClassType>>();
 	private int changesInFlow;
-
+	
     @Override
     protected List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         final List<PropertyDescriptor> properties = new ArrayList<>();
@@ -166,7 +166,14 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 				e.printStackTrace();
 			}
         }
-
+        
+       	Map<PropertyDescriptor,String> properties = reportingContext.getProperties();
+       	getLogger().info("*********************LISTING ALL PROPERTIES");
+       	for (Map.Entry<PropertyDescriptor, String> property: properties.entrySet()){
+       		getLogger().info("********************* KEY: " + property.getKey());
+       		getLogger().info("********************* VALUE: " + property.getValue());
+       	}
+       	
         // load the reference to the flow controller, if it doesn't exist then create it
         try {
         	//Referenceable flowController = getFlowControllerReference(reportingContext);
@@ -322,7 +329,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         processorReferenceable.set(NAME, name);
         processorReferenceable.set("name", name);
         processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable);
-        
+        /*
         switch (processor.getType()) {
         case "PutKafka":
             try {
@@ -355,7 +362,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         default:
             break;
     	}
-        
+        */
         return processorReferenceable;
     }
     
