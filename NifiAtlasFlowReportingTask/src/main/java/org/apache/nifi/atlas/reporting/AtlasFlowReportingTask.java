@@ -99,7 +99,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private int timesTriggered = 0;
     private AtlasClient atlasClient;
     private AtomicReference<Referenceable> flowControllerRef = new AtomicReference<>();
-    private AtomicReference<Referenceable> rootGroupRef = new AtomicReference<>();
     
     private Double atlasVersion = 0.0;
     private String encoding = "YWRtaW46YWRtaW4=";
@@ -168,63 +167,17 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         }
 
         // load the reference to the flow controller, if it doesn't exist then create it
-       if (flowControllerRef.get() == null) {
-            try {
-                Referenceable flowController = getFlowControllerReference(reportingContext);
-                if (flowController == null) {
-                    getLogger().info("flow controller didn't exist, creating it...");
-                    flowController = createFlowController(reportingContext);
-                    flowController = register(flowController);
-                }
-                flowControllerRef.set(flowController);
-            } catch (Exception e) {
-                getLogger().error("Unable to get reference to flow controller from Atlas", e);
-                throw new ProcessException(e);
+        try {
+        	Referenceable flowController = getFlowControllerReference(reportingContext);
+            if (flowController == null) {
+            	getLogger().info("flow controller didn't exist, creating it...");
+            	flowController = createFlowController(reportingContext);
+            	flowController = register(flowController);
             }
-        } else {
-           getLogger().info("Already have reference to flow controller, nothing to do...");
-       }
-
-       /* 
-       // load the reference to the root process group, if it doesn't exist then create it
-        if (rootGroupRef.get() == null) {
-            try {
-                Referenceable rootGroup = getGroupReference(reportingContext);
-                if (rootGroup == null) {
-                    getLogger().info("root process group didn't exist, creating it...");
-                    rootGroup = createRootProcessGroup(reportingContext, flowControllerRef.get());
-                    rootGroup = register(atlasClient, rootGroup);
-                }
-                rootGroupRef.set(rootGroup);
-            } catch (Exception e) {
-                getLogger().error("Unable to get reference to root group from Atlas", e);
-                throw new ProcessException(e);
-            }
-        } else {
-            getLogger().info("Already have reference to root group, nothing to do...");
+        } catch (Exception e) {
+        	getLogger().error("Unable to get reference to flow controller from Atlas", e);
+        	throw new ProcessException(e);
         }
-        
-        
-        // grab new actions starting from lastId up to pageSize
-        List<Action> actions = eventAccess.getFlowChanges(lastId, pageSize);
-        if (actions == null || actions.size() == 0) {
-            getLogger().info("No actions to process since last execution, lastId = {}", new Object[] {lastId});
-        }
-
-        // page through actions and process each page
-        while (actions != null && actions.size() > 0) {
-            for (final Action action : actions) {
-                try {
-                    // TODO eventually send multiple actions in a single request
-                    processAction(action);
-                } catch (Exception e) {
-                    getLogger().error("Unable to process Action", e);
-                    throw new ProcessException(e);
-                }
-                lastId = action.getId();
-            }
-            actions = eventAccess.getFlowChanges(lastId + 1, pageSize);
-        } */
 
         getLogger().info("Done processing actions");
         timesTriggered++;
@@ -287,23 +240,37 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         
         flowController.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         flowController.set(NAME, name+"-"+id);
+        flowController.set("name", name+"-"+id);
         
         List<ProcessGroupStatus> processGroups = (List<ProcessGroupStatus>) context.getEventAccess().getControllerStatus().getProcessGroupStatus();
-        Iterator<ProcessGroupStatus> processGroupIterator = processGroups.iterator();
-        ProcessGroupStatus processGroup;
-        while(processGroupIterator.hasNext()){
-        	processGroup = processGroupIterator.next();
-        	getLogger().info("****************Process Group Id: " + processGroup.getId());
-            getLogger().info("****************Process Group Name: " + processGroup.getName());
-        	
-        	try {
-				getProcessGroupReference(processGroup);
-				getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
-        	} catch (Exception e) {
-        		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
-			}
-        }
+        getLogger().info("****************Flow Controller Process Groups : " + processGroups.size());
         
+        ProcessGroupStatus processGroup;
+        if(processGroups.size() > 0){
+        	Iterator<ProcessGroupStatus> processGroupIterator = processGroups.iterator();
+        	while(processGroupIterator.hasNext()){
+        		processGroup = processGroupIterator.next();
+        		getLogger().info("****************Process Group Id: " + processGroup.getId());
+        		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
+        		try {
+        			getProcessGroupReference(processGroup);
+        			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+        		} catch (Exception e) {
+        			referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
+        		}
+        	}
+        }else{
+        	processGroup = context.getEventAccess().getControllerStatus();
+    		getLogger().info("****************Process Group Id: " + processGroup.getId());
+    		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
+    		try {
+    			getProcessGroupReference(processGroup);
+    			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+    		} catch (Exception e) {
+    			referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
+    		}
+        }
+        	
         flowController.set("process_groups", referenceableProcessGroups);
         return flowController;
     }
@@ -316,6 +283,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         Referenceable referenceableProcessGroup = new Referenceable(NiFiDataTypes.NIFI_PROCESS_GROUP.getName());
         referenceableProcessGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         referenceableProcessGroup.set(NAME, name+"-"+id);
+        referenceableProcessGroup.set("name", name+"-"+id);
         referenceableProcessGroup.set(FLOW, flowController);
         
         List<ProcessorStatus> processorCollection = (List<ProcessorStatus>) processGroup.getProcessorStatus();
@@ -350,6 +318,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         Referenceable processorReferenceable = new Referenceable(NiFiDataTypes.NIFI_PROCESSOR.getName());
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
+        processorReferenceable.set("name", name);
         processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable);
         
         switch (processor.getType()) {
