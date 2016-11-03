@@ -302,7 +302,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         referenceableProcessGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         referenceableProcessGroup.set(NAME, name+"-"+id);
         referenceableProcessGroup.set("name", name+"-"+id);
-        referenceableProcessGroup.set(FLOW, flowController);
+        referenceableProcessGroup.set(FLOW, flowController.getId());
         
         List<ProcessorStatus> processorCollection = (List<ProcessorStatus>) processGroup.getProcessorStatus();
         Iterator<ProcessorStatus> processorIterator = processorCollection.iterator();
@@ -328,7 +328,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             }
             referenceableProcessors.add(createProcessor(referenceableProcessGroup, processor));
         }
+        getLogger().info("****************Number of processors in Group: " + referenceableProcessors.size());
         referenceableProcessGroup.set("processors", referenceableProcessors);
+        getLogger().info("****************Process Group: " + referenceableProcessGroup.toString());
         getLogger().info(InstanceSerialization.toJson(referenceableProcessGroup, true));
         return referenceableProcessGroup;
     }
@@ -343,7 +345,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
         processorReferenceable.set("name", name);
-        processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable);
+        processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable.getId());
         /*
         switch (processor.getType()) {
         case "PutKafka":
