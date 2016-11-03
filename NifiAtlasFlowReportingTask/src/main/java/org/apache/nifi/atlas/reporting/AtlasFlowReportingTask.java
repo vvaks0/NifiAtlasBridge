@@ -176,6 +176,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             	flowController = createFlowController(reportingContext);
             	if(changesInFlow > 0){
             		flowController = register(flowController);
+        		}else{
+        			getLogger().info("********************* Nochanges detected... nothing to do");
         		}
             //}
         } catch (Exception e) {
@@ -185,6 +187,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 
         getLogger().info("Done processing actions");
         timesTriggered++;
+        changesInFlow = 0;
     }
 
     private Referenceable getFlowControllerReference(ReportingContext context) throws Exception {
