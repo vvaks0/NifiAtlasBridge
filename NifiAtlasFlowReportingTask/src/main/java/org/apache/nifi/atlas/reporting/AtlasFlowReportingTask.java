@@ -419,7 +419,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 				e.printStackTrace();
 			}
             break;
-        case "ListenHttp":
+        case "ListenHTTP":
         	try {
         		String basePath = processorConfigMap.get("Base Path").toString();
         		String listeningPort = processorConfigMap.get("Listening Port").toString();
