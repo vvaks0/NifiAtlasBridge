@@ -172,7 +172,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     	if(atlasVersion == 0.0){
         	atlasVersion = Double.valueOf(getAtlasVersion(atlasUrl + "/api/atlas/admin/version", basicAuth));
         	getLogger().info("********************* Atlas Version is: " + atlasVersion);
-        	getLogger().info("********************* No HTTP Call Atlas Version is: " + atlasClient.ADMIN_VERSION);
     	}
     	
     	getLogger().info("********************* Number of Reports Sent: " + timesTriggered);
@@ -238,35 +237,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         timesTriggered++;
         changesInFlow = 0;
     }
-    
-    /*
-    private Referenceable getFlowControllerReference(ReportingContext context) throws Exception {
-        String typeName = NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName();
-        String id = context.getEventAccess().getControllerStatus().getId();
-        String name = context.getEventAccess().getControllerStatus().getName();
-
-        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
-        return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
-    }
-
-    private Referenceable getProcessGroupReference(ProcessGroupStatus processGroup) throws Exception {
-        String typeName = NiFiDataTypes.NIFI_PROCESS_GROUP.getName();
-        String id = processGroup.getId();
-        String name = processGroup.getName();
-        
-        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
-        return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
-    }
-    
-    private Referenceable getProcessorReference(ProcessorStatus processor) throws Exception {
-        String typeName = NiFiDataTypes.NIFI_PROCESSOR.getName();
-        String id = processor.getId();
-        String name = processor.getName();
-        String type = processor.getType();
-        
-        String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
-        return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
-    } */
 
     private Referenceable createFlowController(ReportingContext context) {
         String id = context.getEventAccess().getControllerStatus().getId();
