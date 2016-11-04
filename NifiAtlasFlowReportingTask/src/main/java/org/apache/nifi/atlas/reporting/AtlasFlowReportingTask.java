@@ -362,8 +362,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         Map<String,String> processorConfigMap = new HashMap<String,String>();
         if(processorConfigObject != null && processorConfigObject.size() > 0){
         	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
-        			getLogger().info("****************Configuration Item: " + configItem.getKey() + " , " + configItem.getValue().toString());
-        			processorConfigMap.put(configItem.getKey(), configItem.getValue().toString());
+        		getLogger().info("****************Configuration Item: " + configItem);
+        		getLogger().info("****************Configuration Item: " + configItem.getKey() + " , " + configItem.getValue());
+        		processorConfigMap.put(configItem.getKey(), configItem.getValue().toString());
         	}
         }
         
