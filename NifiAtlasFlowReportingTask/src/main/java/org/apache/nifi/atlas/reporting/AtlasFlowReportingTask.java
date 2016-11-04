@@ -131,6 +131,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private Map<String, EnumTypeDefinition> enumTypeDefinitionMap = new HashMap<String, EnumTypeDefinition>();
 	private Map<String, StructTypeDefinition> structTypeDefinitionMap = new HashMap<String, StructTypeDefinition>();
 	private Map<String, HierarchicalTypeDefinition<ClassType>> classTypeDefinitions = new HashMap<String, HierarchicalTypeDefinition<ClassType>>();
+	private Referenceable currentFlowController;
 	private List<Referenceable> inputs;
 	private List<Referenceable> outputs;
 	private int changesInFlow;
@@ -206,18 +207,17 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
        	
         // load the reference to the flow controller, if it doesn't exist then create it
         try {
-        	//Referenceable flowController = getFlowControllerReference(reportingContext);
-        	Referenceable flowController = null;
-            //if (flowController == null) {
-            	//getLogger().info("flow controller didn't exist, creating it...");
-            	flowController = createFlowController(reportingContext);
-            	if(changesInFlow > 0){
-            		getLogger().info(InstanceSerialization.toJson(flowController, true));
-            		flowController = register(flowController);
-        		}else{
-        			getLogger().info("********************* Nochanges detected... nothing to do");
-        		}
-            //}
+        	currentFlowController = getFlowControllerReference(reportingContext);
+        	Referenceable newflowController = createFlowController(reportingContext);
+            if(changesInFlow > 0){
+            	getLogger().info(InstanceSerialization.toJson(newflowController, true));
+            	if(currentFlowController != null){
+            		atlasClient.deleteEntity(NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, (String)currentFlowController.get(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME));
+            	}
+            	currentFlowController = register(newflowController);
+        	}else{
+        		getLogger().info("********************* No changes detected... nothing to do");
+        	}
         } catch (Exception e) {
         	getLogger().error("Unable to get reference to flow controller from Atlas", e);
         	throw new ProcessException(e);
