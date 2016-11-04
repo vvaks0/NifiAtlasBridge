@@ -470,10 +470,11 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 		String listeningPort = processorConfigMap.get("Listening Port").toString();
 		String listenHttpServiceUrl = nifiUrl+listeningPort+basePath;
 		
-    	//HttpServiceReferenceable.set("uri", listenHttpServiceUrl);
         HttpServiceReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, listenHttpServiceUrl);
         HttpServiceReferenceable.set(AtlasClient.NAME, listenHttpServiceUrl);
-        HttpServiceReferenceable.set("implementation", referenceableProcessor.getId());
+        HttpServiceReferenceable.set(PROPERTIES, processorConfigMap);
+        //HttpServiceReferenceable.set("uri", listenHttpServiceUrl);
+        //HttpServiceReferenceable.set("implementation", referenceableProcessor.getId());
         
         return HttpServiceReferenceable;
     }
