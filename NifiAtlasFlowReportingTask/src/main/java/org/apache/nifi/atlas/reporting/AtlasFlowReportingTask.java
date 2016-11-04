@@ -366,9 +366,10 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
         		getLogger().info("****************Configuration Item: " + configItem);
         		configKey = configItem.getKey();
-        		configValue = configItem.getValue().toString();
-        		if(configValue == null){
+        		if(configItem.getValue() == null){
         			configValue = "";
+        		}else{
+        			configValue = configItem.getValue().toString();
         		}
         		processorConfigMap.put(configKey, configValue);
         	}
