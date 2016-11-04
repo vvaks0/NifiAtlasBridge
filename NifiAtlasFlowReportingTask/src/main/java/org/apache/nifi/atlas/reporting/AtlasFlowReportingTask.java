@@ -116,12 +116,12 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private String DEFAULT_ADMIN_USER = "admin";
     private String DEFAULT_ADMIN_PASS = "admin";
     private String atlasUrl;
-    private String nifiUrl = "http://localhost";
+    private String nifiUrl;
     private String[] basicAuth = {DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASS};
     
     private DataTypes.MapType STRING_MAP_TYPE = new DataTypes.MapType(DataTypes.STRING_TYPE, DataTypes.STRING_TYPE);
 
-    public String NAME = "nifiName";
+    public String NAME = "name";
     public String FLOW = "flow";
     public String PROCESS_GROUP = "processGroup";
     public String SOURCE = "source";
@@ -192,8 +192,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
        		getLogger().info("********************* VALUE: " + property.getValue());
        	}
        	
+       	/*
        	List<Action> actions = reportingContext.getEventAccess().getFlowChanges(1, 10);
-       	
        	for (Action action: actions){
        		getLogger().info("********************* ID: " + action.getId());
        		getLogger().info("********************* SOURCEID: " + action.getSourceId());
@@ -202,7 +202,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
        		getLogger().info("********************* DETAILS: " + action.getComponentDetails());
        		getLogger().info("********************* TYPE: " + action.getSourceType());
        		getLogger().info("********************* OPERATIONS: " + action.getOperation());       		
-       	}
+       	}*/
        	
         // load the reference to the flow controller, if it doesn't exist then create it
         try {
@@ -211,8 +211,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             //if (flowController == null) {
             	//getLogger().info("flow controller didn't exist, creating it...");
             	flowController = createFlowController(reportingContext);
-            	flowController.set("inputs", inputs);
-            	flowController.set("outputs", outputs);
             	if(changesInFlow > 0){
             		getLogger().info(InstanceSerialization.toJson(flowController, true));
             		flowController = register(flowController);
@@ -266,7 +264,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         
         flowController.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         flowController.set(NAME, name+"-"+id);
-        flowController.set("name", name+"-"+id);
         
         List<ProcessGroupStatus> processGroups = (List<ProcessGroupStatus>) context.getEventAccess().getControllerStatus().getProcessGroupStatus();
         getLogger().info("****************Flow Controller Process Groups : " + processGroups.size());
@@ -308,6 +305,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
         }
         flowController.set("process_groups", referenceableProcessGroups);
+        flowController.set("inputs", inputs);
+    	flowController.set("outputs", outputs);
         getLogger().info(InstanceSerialization.toJson(flowController, true));
         return flowController;
     }
@@ -320,7 +319,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         Referenceable referenceableProcessGroup = new Referenceable(NiFiDataTypes.NIFI_PROCESS_GROUP.getName());
         referenceableProcessGroup.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+id);
         referenceableProcessGroup.set(NAME, name+"-"+id);
-        referenceableProcessGroup.set("name", name+"-"+id);
         referenceableProcessGroup.set(FLOW, flowController.getId());
         
         List<ProcessorStatus> processorCollection = (List<ProcessorStatus>) processGroup.getProcessorStatus();
@@ -358,20 +356,19 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String id = processor.getId();
         String name = processor.getName();
         String type = processor.getType();
+        getLogger().info("****************Acquiring Processor Configs... ");
         Map<String,Object> processorConfigObject = getProcessorConfig(nifiUrl, basicAuth);
+        getLogger().info("****************Configuration Map Size: " + processorConfigObject.size());
         Map<String,String> processorConfigMap = new HashMap<String,String>();
         if(processorConfigObject != null && processorConfigObject.size() > 0){
-        	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
-        		if(configItem.getValue() instanceof String){
-        			processorConfigMap.put(configItem.getKey(), (String) configItem.getValue());
-        		}
+        	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){        		
+        			processorConfigMap.put(configItem.getKey(), configItem.getValue().toString());
         	}
         }
         
         Referenceable processorReferenceable = new Referenceable(NiFiDataTypes.NIFI_PROCESSOR.getName());
         processorReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         processorReferenceable.set(NAME, name);
-        processorReferenceable.set("name", name);
         processorReferenceable.set(PROCESS_GROUP, processGroupReferenceable.getId());
         processorReferenceable.set(PROPERTIES, processorConfigMap);
         
@@ -553,7 +550,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final String typeName = "http_service";
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
-                //new AttributeDefinition(NAME, DataTypes.STRING_TYPE.getName(), Multiplicity.REQUIRED, false, null),
                 new AttributeDefinition(PROPERTIES, STRING_MAP_TYPE.getName(), Multiplicity.OPTIONAL, false, null),
                 new AttributeDefinition("implementation", AtlasClient.REFERENCEABLE_SUPER_TYPE, Multiplicity.OPTIONAL, false, null)
         };
@@ -701,25 +697,4 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 	    }
 	    return sb.toString();
 	}
-	 /*
-    private void processAction(Action action) throws Exception {
-        getLogger().info("****************Processing action with id {}", new Object[] {action.getId()});
-        getLogger().info("****************Source Id: " + action.getSourceId());
-        getLogger().info("****************Source Name: " + action.getSourceName());
-        getLogger().info("****************Source Type: " + action.getSourceType());
-        getLogger().info("****************Component Operation: " + action.getOperation());
-        getLogger().info("****************Component Details: " + action.getComponentDetails());
-        
-        switch (action.getOperation()) {
-            case Add:
-                if (action.getSourceType().equals(Component.Processor)) {
-                    //ReferenceableUtil.register(atlasClient, createProcessor(action));
-                }
-                break;
-            case Connect:
-                break;
-            default:
-                break;
-        }
-    } */
 }
