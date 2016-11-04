@@ -570,7 +570,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 
         final AttributeDefinition[] attributeDefinitions = new AttributeDefinition[] {
                 new AttributeDefinition(PROPERTIES, STRING_MAP_TYPE.getName(), Multiplicity.OPTIONAL, false, null),
-                new AttributeDefinition("implementation", AtlasClient.REFERENCEABLE_SUPER_TYPE, Multiplicity.OPTIONAL, false, null)
+                //new AttributeDefinition("implementation", AtlasClient.REFERENCEABLE_SUPER_TYPE, Multiplicity.OPTIONAL, false, null)
         };
 
         addClassTypeDefinition(typeName, ImmutableSet.of(AtlasClient.DATA_SET_SUPER_TYPE), attributeDefinitions);
