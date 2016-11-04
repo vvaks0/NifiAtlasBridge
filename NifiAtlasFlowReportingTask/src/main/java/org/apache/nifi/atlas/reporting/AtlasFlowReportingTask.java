@@ -356,6 +356,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String id = processor.getId();
         String name = processor.getName();
         String type = processor.getType();
+        String configKey;
+        String configValue;
         getLogger().info("****************Acquiring Processor Configs... ");
         Map<String,Object> processorConfigObject = getProcessorConfig(id, nifiUrl, basicAuth);
         getLogger().info("****************Configuration Map Size: " + processorConfigObject.size());
@@ -363,8 +365,12 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         if(processorConfigObject != null && processorConfigObject.size() > 0){
         	for(Entry<String,Object> configItem: processorConfigObject.entrySet()){
         		getLogger().info("****************Configuration Item: " + configItem);
-        		getLogger().info("****************Configuration Item: " + configItem.getKey() + " , " + configItem.getValue());
-        		processorConfigMap.put(configItem.getKey(), configItem.getValue().toString());
+        		configKey = configItem.getKey();
+        		configValue = configItem.getValue().toString();
+        		if(configValue == null){
+        			configValue = "";
+        		}
+        		processorConfigMap.put(configKey, configValue);
         	}
         }
         
