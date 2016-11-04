@@ -357,7 +357,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         String name = processor.getName();
         String type = processor.getType();
         getLogger().info("****************Acquiring Processor Configs... ");
-        Map<String,Object> processorConfigObject = getProcessorConfig(nifiUrl, basicAuth);
+        Map<String,Object> processorConfigObject = getProcessorConfig(id, nifiUrl, basicAuth);
         getLogger().info("****************Configuration Map Size: " + processorConfigObject.size());
         Map<String,String> processorConfigMap = new HashMap<String,String>();
         if(processorConfigObject != null && processorConfigObject.size() > 0){
@@ -651,13 +651,15 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 		return versionValue.substring(0,3);
 	}
 	
-	private HashMap<String, Object> getProcessorConfig(String urlString, String[] basicAuth){
-		System.out.println("************************ Getting Nifi Processor from: " + urlString);
+	private HashMap<String, Object> getProcessorConfig(String processorId, String urlString, String[] basicAuth){
+		String processorResourceUri = "/nifi-api/processors/";
+		String nifiProcessorUrl = urlString+processorResourceUri+processorId;
+		System.out.println("************************ Getting Nifi Processor from: " + nifiProcessorUrl);
 		JSONObject json = null;
 		JSONObject nifiComponentJSON = null;
 		HashMap<String,Object> result = null;
         try{
-        	json = readJSONFromUrlAuth(urlString, basicAuth);
+        	json = readJSONFromUrlAuth(nifiProcessorUrl, basicAuth);
         	System.out.println("************************ Response from Nifi: " + json);
         	nifiComponentJSON = json.getJSONObject("component").getJSONObject("config").getJSONObject("properties");
         	result = new ObjectMapper().readValue(nifiComponentJSON.toString(), HashMap.class);
