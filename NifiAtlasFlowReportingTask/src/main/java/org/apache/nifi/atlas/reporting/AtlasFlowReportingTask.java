@@ -206,10 +206,13 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
        	}*/
        	
         // load the reference to the flow controller, if it doesn't exist then create it
-        try {
-        	currentFlowController = getFlowControllerReference(reportingContext);
+       	String currentControllerId = reportingContext.getEventAccess().getControllerStatus().getId();
+       	String currentControllerName = reportingContext.getEventAccess().getControllerStatus().getName();
+       	try {
+        	//currentFlowController = getFlowControllerReference(reportingContext);
+        	currentFlowController = atlasClient.getEntity(NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, currentControllerName+"-"+currentControllerId);
         	Referenceable newflowController = createFlowController(reportingContext);
-            if(changesInFlow > 0){
+            if(changesInFlow > 0 || currentFlowController.getId().getState().toString().equalsIgnoreCase("DELETED")){
             	getLogger().info(InstanceSerialization.toJson(newflowController, true));
             	if(currentFlowController != null){
             		atlasClient.deleteEntity(NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, (String)currentFlowController.get(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME));
@@ -227,7 +230,8 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         timesTriggered++;
         changesInFlow = 0;
     }
-
+    
+    /*
     private Referenceable getFlowControllerReference(ReportingContext context) throws Exception {
         String typeName = NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName();
         String id = context.getEventAccess().getControllerStatus().getId();
@@ -254,7 +258,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         
         String dslQuery = String.format("%s where %s = '%s'", typeName, AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, name+"-"+type+"-"+id);
         return ReferenceableUtil.getEntityReferenceFromDSL(atlasClient, typeName, dslQuery);
-    }
+    } */
 
     private Referenceable createFlowController(ReportingContext context) {
         String id = context.getEventAccess().getControllerStatus().getId();
@@ -277,13 +281,16 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         		getLogger().info("****************Process Group Id: " + processGroup.getId());
         		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
         		try {
-        			processGroupReferenceable = getProcessGroupReference(processGroup);
+        			//processGroupReferenceable = getProcessGroupReference(processGroup);
+        			processGroupReferenceable = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), 
+        															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
+        															  processGroup.getName()+processGroup.getId());
         		} catch (Exception e) {
         			e.printStackTrace();
         		}
-        		if (processGroupReferenceable == null)
+        		if (processGroupReferenceable == null || processGroupReferenceable.getId().getState().toString().equals("DELETED")){
         			changesInFlow++;
-        		else{
+        		}else{
         			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
         		}
         		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
@@ -293,11 +300,14 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     		getLogger().info("****************Process Group Id: " + processGroup.getId());
     		getLogger().info("****************Process Group Name: " + processGroup.getName());        	
     		try {
-    			processGroupReferenceable = getProcessGroupReference(processGroup);
+    			//processGroupReferenceable = getProcessGroupReference(processGroup);
+    			processGroupReferenceable = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), 
+    															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
+    															  processGroup.getName()+"-"+processGroup.getId());
     		} catch (Exception e) {
     			e.printStackTrace();
     		}
-    		if (processGroupReferenceable == null){
+    		if (processGroupReferenceable == null || processGroupReferenceable.getId().getState().toString().equals("DELETED")){
     			changesInFlow++;
     		}else{
     			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
@@ -334,11 +344,14 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             getLogger().info("****************Processor GroupId: " + processor.getGroupId());
             
             try {
-            	referenceableProcessor = getProcessorReference(processor);
+            	//referenceableProcessor = getProcessorReference(processor);
+            	referenceableProcessor = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESSOR.getName(), 
+        															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
+        															  processor.getName()+"-"+processor.getType()+"-"+processor.getId());
         	} catch (Exception e) {
-        		e.printStackTrace();
-			}
-            if(referenceableProcessor == null){
+        			e.printStackTrace();
+        	}
+        	if (referenceableProcessor == null || referenceableProcessor.getId().getState().toString().equals("DELETED")){
             	changesInFlow++;
             }else{
             	getLogger().info("****************Processor Name: " + processor.getName() + " already exists");
@@ -388,7 +401,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
-				if(externalReferenceable == null){
+				if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
 					changesInFlow++;
@@ -402,7 +415,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
-				if(externalReferenceable == null){
+        		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
 					changesInFlow++;
@@ -416,7 +429,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
-				if(externalReferenceable == null){
+        		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
 					changesInFlow++;
@@ -433,7 +446,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         		String listeningPort = processorConfigMap.get("Listening Port").toString();
         		String listenHttpServiceUrl = nifiUrl+listeningPort+basePath;
         		externalReferenceable = getEntityReferenceFromDSL("http_service", "http_service where name='" + listenHttpServiceUrl + "'");
-				if(externalReferenceable == null){
+        		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createHttpService(processor, processorReferenceable, processorConfigMap));
 					changesInFlow++;
