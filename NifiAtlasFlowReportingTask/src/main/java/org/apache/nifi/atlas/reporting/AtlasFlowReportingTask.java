@@ -172,6 +172,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     	if(atlasVersion == 0.0){
         	atlasVersion = Double.valueOf(getAtlasVersion(atlasUrl + "/api/atlas/admin/version", basicAuth));
         	getLogger().info("********************* Atlas Version is: " + atlasVersion);
+        	getLogger().info("********************* No HTTP Call Atlas Version is: " + atlasClient.ADMIN_VERSION);
     	}
     	
     	getLogger().info("********************* Number of Reports Sent: " + timesTriggered);
@@ -212,7 +213,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	//currentFlowController = getFlowControllerReference(reportingContext);
         	currentFlowController = atlasClient.getEntity(NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, currentControllerName+"-"+currentControllerId);
         	Referenceable newflowController = createFlowController(reportingContext);
-            if(changesInFlow > 0 || currentFlowController.getId().getState().toString().equalsIgnoreCase("DELETED")){
+            if(changesInFlow > 0){
             	getLogger().info(InstanceSerialization.toJson(newflowController, true));
             	if(currentFlowController != null){
             		atlasClient.deleteEntity(NiFiDataTypes.NIFI_FLOW_CONTROLLER.getName(), AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, (String)currentFlowController.get(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME));
@@ -221,10 +222,17 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         	}else{
         		getLogger().info("********************* No changes detected... nothing to do");
         	}
-        } catch (Exception e) {
+        } catch (AtlasServiceException e) {
         	getLogger().error("Unable to get reference to flow controller from Atlas", e);
-        	throw new ProcessException(e);
-        }
+        	Referenceable newflowController = createFlowController(reportingContext);
+        	try {
+    			currentFlowController = register(newflowController);
+    		} catch (Exception e1) {
+    			e1.printStackTrace();
+    		}
+        } catch (Exception e) {
+			e.printStackTrace();
+		}
 
         getLogger().info("Done processing actions");
         timesTriggered++;
@@ -285,14 +293,12 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         			processGroupReferenceable = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), 
         															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
         															  processGroup.getName()+processGroup.getId());
-        		} catch (Exception e) {
-        			e.printStackTrace();
-        		}
-        		if (processGroupReferenceable == null || processGroupReferenceable.getId().getState().toString().equals("DELETED")){
-        			changesInFlow++;
-        		}else{
+        			
         			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+        		} catch (AtlasServiceException e) {
+        			changesInFlow++;
         		}
+        		
         		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
         	}
         }else{
@@ -304,14 +310,12 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     			processGroupReferenceable = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESS_GROUP.getName(), 
     															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
     															  processGroup.getName()+"-"+processGroup.getId());
-    		} catch (Exception e) {
-    			e.printStackTrace();
-    		}
-    		if (processGroupReferenceable == null || processGroupReferenceable.getId().getState().toString().equals("DELETED")){
-    			changesInFlow++;
-    		}else{
+    			
     			getLogger().info("****************Process Group Name: " + processGroup.getName() + " already exists");
+    		} catch (AtlasServiceException e) {
+    			changesInFlow++;
     		}
+    		
     		referenceableProcessGroups.add(createProcessGroup(flowController, processGroup));
         }
         flowController.set("process_groups", referenceableProcessGroups);
@@ -348,14 +352,12 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             	referenceableProcessor = atlasClient.getEntity(NiFiDataTypes.NIFI_PROCESSOR.getName(), 
         															  AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, 
         															  processor.getName()+"-"+processor.getType()+"-"+processor.getId());
-        	} catch (Exception e) {
-        			e.printStackTrace();
-        	}
-        	if (referenceableProcessor == null || referenceableProcessor.getId().getState().toString().equals("DELETED")){
-            	changesInFlow++;
-            }else{
+        	
             	getLogger().info("****************Processor Name: " + processor.getName() + " already exists");
-            }
+            }catch (AtlasServiceException e) {
+            	changesInFlow++;
+        	}
+        	
             referenceableProcessors.add(createProcessor(referenceableProcessGroup, processor));
         }
         getLogger().info("****************Number of processors in Group: " + referenceableProcessors.size());
@@ -407,7 +409,9 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 					changesInFlow++;
 				}
 				outputs.add(externalReferenceable);
-			} catch (Exception e) {
+        	} catch (AtlasServiceException e) {
+        		
+        	} catch (Exception e) {
 				e.printStackTrace();
 			}
             break;
