@@ -98,13 +98,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             .defaultValue("http://${hostname(true)}:9090")
             .addValidator(StandardValidators.URL_VALIDATOR)
             .build();
-    static final PropertyDescriptor ACTION_PAGE_SIZE = new PropertyDescriptor.Builder()
-            .name("Action Page Size")
-            .description("The size of each page to use when paging through the NiFi actions list.")
-            .required(true)
-            .defaultValue("100")
-            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
-            .build();
     
     private int lastId = 0; // TODO store on disk, this is for demo only
     private int timesTriggered = 0;
@@ -141,7 +134,6 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         final List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(ATLAS_URL);
         properties.add(NIFI_URL);
-        properties.add(ACTION_PAGE_SIZE);
         return properties;
     }
     
@@ -159,7 +151,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         inputs = new ArrayList<Referenceable>();
     	outputs = new ArrayList<Referenceable>();
         //EventAccess eventAccess = reportingContext.getEventAccess();
-        int pageSize = reportingContext.getProperty(ACTION_PAGE_SIZE).asInteger();
+        //int pageSize = reportingContext.getProperty(ACTION_PAGE_SIZE).asInteger();
         atlasUrl = reportingContext.getProperty(ATLAS_URL).getValue();
         nifiUrl = reportingContext.getProperty(NIFI_URL).getValue();
         String[] atlasURL = {atlasUrl};
