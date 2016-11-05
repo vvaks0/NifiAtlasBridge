@@ -95,7 +95,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
             .description("The URL of the Nifi UI")
             .required(true)
             .expressionLanguageSupported(true)
-            .defaultValue("http://localhost:9090")
+            .defaultValue("http://${hostname(true)}:9090")
             .addValidator(StandardValidators.URL_VALIDATOR)
             .build();
     static final PropertyDescriptor ACTION_PAGE_SIZE = new PropertyDescriptor.Builder()
