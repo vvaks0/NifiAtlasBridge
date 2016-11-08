@@ -447,7 +447,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     	Referenceable HttpServiceReferenceable = new Referenceable("http_service");
     	String basePath = processorConfigMap.get("Base Path").toString();
 		String listeningPort = processorConfigMap.get("Listening Port").toString();
-		String listenHttpServiceUrl = nifiUrl+listeningPort+basePath;
+		String listenHttpServiceUrl = nifiUrl.substring(0, nifiUrl.lastIndexOf(":"))+":"+listeningPort+"/"+basePath;
 		
         HttpServiceReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, listenHttpServiceUrl);
         HttpServiceReferenceable.set(AtlasClient.NAME, listenHttpServiceUrl);
