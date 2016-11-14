@@ -359,10 +359,10 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         processorReferenceable.set(PROPERTIES, processorConfigMap);
         
         Referenceable externalReferenceable = null;
-        getLogger().info("****************Determining if processor " + name + " of type " + type + "is an input or output to the flow... ");
+        getLogger().info("****************Determining if processor " + name + " of type " + type + " is an input or output to the flow... ");
         switch (processor.getType()) {
         case "PutKafka":
-        	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
+        	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
 				if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
@@ -378,7 +378,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 			}
             break;
         case "PublishKafka":
-        	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
+        	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
         		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
@@ -392,7 +392,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 			}
             break;
         case "PublishKafka_0_10":
-        	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
+        	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
         		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
         		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
@@ -432,14 +432,23 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     
     private Referenceable createKafkaTopic(ProcessorStatus processor, Map<String, String> processorConfigMap){
     	Referenceable kafkaTopicReferenceable = new Referenceable("kafka_topic");
-    	String topicName = processorConfigMap.get("Topic Name").toString();
-        
-    	kafkaTopicReferenceable.set("topic", topicName);
-        kafkaTopicReferenceable.set("uri", "");
-        kafkaTopicReferenceable.set(AtlasClient.OWNER, "");
-        kafkaTopicReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, topicName);
-        kafkaTopicReferenceable.set(AtlasClient.NAME, topicName);
-        
+    	String topicName = null;
+    	if(processorConfigMap.containsKey("Topic Name")){
+    		topicName = processorConfigMap.get("Topic Name").toString();
+    	}else if(processorConfigMap.containsKey("topic")){
+    		topicName = processorConfigMap.get("topic").toString();
+    	}
+    	
+    	if(topicName != null){
+    		kafkaTopicReferenceable.set("topic", topicName);
+    		kafkaTopicReferenceable.set("uri", "");
+    		kafkaTopicReferenceable.set(AtlasClient.OWNER, "");
+    		kafkaTopicReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, topicName);
+    		kafkaTopicReferenceable.set(AtlasClient.NAME, topicName);
+    	}else{
+    		getLogger().info("****************Unable to determine Kafka topic name, could not create external entity... ");
+    	}
+    		
         return kafkaTopicReferenceable;
     }
     
