@@ -380,7 +380,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         case "PublishKafka":
         	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
-        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
+        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("topic") + "'");
         		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
@@ -394,7 +394,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
         case "PublishKafka_0_10":
         	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
-        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("Topic Name") + "'");
+        		externalReferenceable = getEntityReferenceFromDSL("kafka_topic", "kafka_topic where topic='" + processorConfigMap.get("topic") + "'");
         		if(externalReferenceable == null || externalReferenceable.getId().getState().toString().equals("DELETED")){
 					getLogger().info("****************External entity not found, creating... ");
 					externalReferenceable = register(createKafkaTopic(processor, processorConfigMap));
