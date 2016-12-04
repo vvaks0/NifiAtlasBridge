@@ -493,15 +493,21 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
     private Referenceable createKafkaTopic(ProcessorStatus processor, Map<String, String> processorConfigMap){
     	Referenceable kafkaTopicReferenceable = new Referenceable("kafka_topic");
     	String topicName = null;
+    	String topicAddress = null;
     	if(processorConfigMap.containsKey("Topic Name")){
     		topicName = processorConfigMap.get("Topic Name").toString();
     	}else if(processorConfigMap.containsKey("topic")){
     		topicName = processorConfigMap.get("topic").toString();
     	}
+    	if(processorConfigMap.containsKey("ZooKeeper Connection String")){
+    		topicAddress = processorConfigMap.get("ZooKeeper Connection String").toString();
+    	}else if(processorConfigMap.containsKey("bootstrap.servers")){
+    		topicAddress = processorConfigMap.get("bootstrap.servers").toString();
+    	}
     	
     	if(topicName != null){
     		kafkaTopicReferenceable.set("topic", topicName);
-    		kafkaTopicReferenceable.set("uri", "");
+    		kafkaTopicReferenceable.set("uri", topicAddress);
     		kafkaTopicReferenceable.set(AtlasClient.OWNER, "");
     		kafkaTopicReferenceable.set(AtlasClient.REFERENCEABLE_ATTRIBUTE_NAME, topicName);
     		kafkaTopicReferenceable.set(AtlasClient.NAME, topicName);
