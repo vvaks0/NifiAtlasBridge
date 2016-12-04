@@ -450,7 +450,7 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 			}
             break;
         case "ListenHTTP":
-        	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
+        	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
         		String basePath = processorConfigMap.get("Base Path").toString();
         		String listeningPort = processorConfigMap.get("Listening Port").toString();
@@ -467,14 +467,16 @@ public class AtlasFlowReportingTask extends AbstractReportingTask {
 			}
         	break;
         case "PutHiveStreaming":
-        	getLogger().info("****************Processor " + name +" of type " + type + "is an ouput, creating or acquiring external entity...");
+        	getLogger().info("****************Processor " + name +" of type " + type + " is an ouput, creating or acquiring external entity...");
         	try {
         		String databaseName = processorConfigMap.get("hive-stream-database-name").toString();
         		String tableName = processorConfigMap.get("hive-stream-table-name").toString();       		
         		externalReferenceable = getEntityReferenceFromDSL("hive_table", "hive_table where name='" + tableName + "' and __state='ACTIVE'");
         		if(externalReferenceable != null){
-					getLogger().info("****************External entity not found ... ");
-					inputs.add(externalReferenceable);
+					getLogger().info("****************External entity found ... ");
+					outputs.add(externalReferenceable);
+        		}else{
+        			getLogger().info("****************External entity not found ... ");
         		}
 			} catch (Exception e) {
 				e.printStackTrace();
